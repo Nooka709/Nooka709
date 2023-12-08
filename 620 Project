@@ -1,0 +1,87 @@
+--MEMBER 2: Ganesh
+
+--Create sequence for category_id
+drop sequence add_category_seq;
+create sequence add_category_seq start with 1;
+
+--Create procedure to insert values to product category table
+create or replace procedure Add_Category(input_category_name in varchar,input_description in varchar) 
+as
+begin 
+insert into product_categories values(add_category_seq.nextval,input_category_name,input_description);
+dbms_output.put_line(input_category_name||' is added successfully');
+end;
+
+
+
+
+--Helper function to find the category_id for adding a product
+CREATE or replace FUNCTION FIND_PRODUCT_CATEGORY_ID (input_category_name in VARCHAR)
+RETURN INT
+as
+categoryid INT;
+
+BEGIN
+    SELECT category_id INTO categoryid
+    FROM Product_Categories
+    WHERE category_name = input_category_name;
+    RETURN categoryid;
+exception
+    when no_data_found then
+    dbms_output.put_line('no_such_category');
+    return -1;
+END;
+
+
+--Creating sequence for adding product_id
+drop sequence add_prod_seq;
+create sequence add_prod_seq start with 1001;
+
+--Creating procedure to add new product to products table
+create or replace procedure Add_Product (input_product_name in varchar,input_available_quantity in int, input_unit_price in decimal,input_category_name varchar)
+as
+categoryid int;
+begin
+categoryid := FIND_PRODUCT_CATEGORY_ID (input_category_name);
+if categoryid > 0 then
+insert into products values(add_prod_seq.nextval,input_product_name,input_available_quantity, input_unit_price,categoryid);
+dbms_output.put_line(input_product_name||' product added successfully');
+else
+dbms_output.put_line('Product can not be added');
+end if;
+end;
+
+-- Creating procedure will take as input the productID and the units (quantity) of a product in an order, 
+-- and will update the inventory in the Products 
+CREATE or replace PROCEDURE Update_Inventory(
+  input_product_ID IN orders.product_ID%type,
+  input_quantity IN orders.quantity%type
+)AS
+BEGIN
+UPDATE products
+SET products.available_quantity_in_store = Products.available_quantity_in_store - input_quantity
+WHERE products.product_ID = input_product_ID;
+END;
+
+
+--procedure to display inventory in each category
+
+create or replace procedure Report_Inventory
+as
+cursor c1 is
+SELECT pc.category_name, 
+CASE WHEN SUM(p.available_quantity_in_store) IS NULL THEN 0 ELSE SUM(p.available_quantity_in_store) END AS total_quantity
+FROM product_categories pc
+LEFT JOIN products p ON pc.category_id = p.category_id
+GROUP BY pc.category_name;
+cat_name varchar(50);
+available_quant int;
+begin
+open c1;
+loop
+fetch c1 into cat_name, available_quant;
+exit when c1%notfound;
+dbms_output.put_line('Category Name = ' || cat_name || ' || Available Quantity = ' || available_quant);
+end loop;
+close c1;
+end;
